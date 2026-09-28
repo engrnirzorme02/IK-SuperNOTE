@@ -1,0 +1,17 @@
+{
+  "name": "IK-SuperNOTE AI",
+  "short_name": "SuperNOTE",
+  "description": "AI-powered Android-style learning, productivity, note-taking and multimedia studio with offline sync, notifications, and secure authentication.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

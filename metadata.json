@@ -1,0 +1,6 @@
+{
+  "name": "IK-SuperNOTE AI",
+  "description": "AI-powered Android-style learning, productivity, note-taking and multimedia studio with offline sync, notifications, and secure authentication.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

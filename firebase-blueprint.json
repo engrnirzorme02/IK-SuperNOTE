@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" },
+        "notificationPreferences": { "type": "object" }
+      },
+      "required": ["uid", "email"]
+    },
+    "note": {
+      "title": "Note",
+      "description": "User notes and study materials created online or offline",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title"]
+    },
+    "notification": {
+      "title": "Notification",
+      "description": "In-app and push notification records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "Stores user account information"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": "note",
+      "description": "Stores notes and documents created by the user"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "notification",
+      "description": "Stores notifications for the user"
+    }
+  }
+}
