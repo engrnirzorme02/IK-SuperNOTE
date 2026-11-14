@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../firebase";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { NoteItem, NotificationItem, UserProfile } from "../types";
+import { NoteItem, NotificationItem, NotificationPreferences, UserProfile } from "../types";
 import {
   getOfflineNotes,
   saveOfflineNotes,
@@ -17,16 +17,25 @@ import {
   saveStoredNotifications,
   sendPushNotification,
   requestNotificationPermission,
+  subscribeToNotifications,
+  getNotificationPreferences,
+  saveNotificationPreferences,
 } from "../services/notificationService";
+import {
+  getActiveLocalSession,
+  setActiveLocalSession,
+} from "../services/authVault";
 
 interface AppContextType {
   // Auth
-  user: FirebaseUser | null;
+  user: UserProfile | null;
   userProfile: UserProfile | null;
   isAuthModalOpen: boolean;
   authModalTab: "signin" | "signup" | "forgot";
   openAuth: (tab?: "signin" | "signup" | "forgot") => void;
   closeAuth: () => void;
+  loginWithProfile: (profile: UserProfile) => void;
+  logoutUser: () => Promise<void>;
 
   // Offline & Sync
   isOnline: boolean;
@@ -46,21 +55,30 @@ interface AppContextType {
   // Notifications
   notifications: NotificationItem[];
   unreadCount: number;
+  activeToastNotification: NotificationItem | null;
+  dismissToastNotification: () => void;
   isNotificationCenterOpen: boolean;
   setIsNotificationCenterOpen: (open: boolean) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   clearAllNotifications: () => void;
   sendTestAlert: () => void;
+  sendCustomNotification: (
+    title: string,
+    message: string,
+    type: "content" | "update" | "alert",
+    actionUrl?: string
+  ) => void;
   requestPushPermission: () => Promise<string>;
+  notificationPrefs: NotificationPreferences;
+  updateNotificationPrefs: (prefs: Partial<NotificationPreferences>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Auth states
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // Auth states (initialized from Secure Local Vault session for instant startup)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => getActiveLocalSession());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"signin" | "signup" | "forgot">("signin");
 
@@ -76,21 +94,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Notes & Notifications
   const [notes, setNotes] = useState<NoteItem[]>(() => getOfflineNotes());
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => getStoredNotifications());
+  const [activeToastNotification, setActiveToastNotification] = useState<NotificationItem | null>(null);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(() =>
+    getNotificationPreferences()
+  );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Subscribe to real-time push notifications for Android heads-up banner
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = subscribeToNotifications((newItem) => {
+      setNotifications(getStoredNotifications());
+      setActiveToastNotification(newItem);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        setActiveToastNotification(null);
+      }, 4500);
+    });
+    return () => {
+      unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   // Listen to network status changes
   useEffect(() => {
     const handleOnline = () => {
       setRealOnline(true);
       if (!isSimulatedOffline) {
-        // Auto sync when connection is restored
         triggerSync();
         sendPushNotification(
-          "ইন্টারনেট কানেকশন পুনরায় সক্রিয়",
+          "ইন্টারনেট সংযোগ পুনরায় সক্রিয়",
           "আপনার ডিভাইস এখন অনলাইন আছে। অফলাইন ডাটা স্বয়ংক্রিয়ভাবে সিঙ্ক হচ্ছে।",
-          "update"
+          "update",
+          "/",
+          userProfile?.uid
         );
       }
     };
@@ -100,7 +140,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sendPushNotification(
         "অফলাইন মোড সক্রিয়",
         "ইন্টারনেট বিচ্ছিন্ন হয়েছে। আপনার কাজ সুরক্ষিতভাবে লোকাল স্টোরেজে সেভ থাকবে।",
-        "alert"
+        "alert",
+        "/files",
+        userProfile?.uid
       );
     };
 
@@ -110,53 +152,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [isSimulatedOffline, user]);
+  }, [isSimulatedOffline, userProfile]);
 
-  // Auth listener
+  // Firebase Auth listener synced with Local Secure Session
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
       if (firebaseUser) {
-        // Fetch or create profile doc in Firestore
         try {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const docSnap = await getDoc(userDocRef);
+          let resolvedProfile: UserProfile;
           if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
+            resolvedProfile = docSnap.data() as UserProfile;
           } else {
-            const newProfile: UserProfile = {
+            resolvedProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
-              displayName: firebaseUser.displayName || "User",
+              displayName: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
               photoURL: firebaseUser.photoURL,
               createdAt: new Date().toISOString(),
               lastLoginAt: new Date().toISOString(),
-              notificationPreferences: {
-                studyAlerts: true,
-                syncUpdates: true,
-                newContent: true,
-                pushEnabled: true,
-              },
+              notificationPreferences: getNotificationPreferences(),
             };
-            await setDoc(userDocRef, newProfile);
-            setUserProfile(newProfile);
+            await setDoc(userDocRef, resolvedProfile);
           }
-          // Pull cloud notes on login
+          setUserProfile(resolvedProfile);
+          setActiveLocalSession(resolvedProfile);
+
           if (navigator.onLine) {
             const cloudNotes = await pullCloudNotes(firebaseUser.uid);
             setNotes(cloudNotes);
             triggerSync();
           }
         } catch (e) {
-          console.error("Error setting up user profile in Firestore:", e);
+          console.warn("Using local session profile:", e);
+          const fallbackProfile: UserProfile = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+            photoURL: firebaseUser.photoURL,
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+            notificationPreferences: getNotificationPreferences(),
+          };
+          setUserProfile(fallbackProfile);
+          setActiveLocalSession(fallbackProfile);
         }
       } else {
-        setUserProfile(null);
+        // Keep local vault session if active
+        const localSession = getActiveLocalSession();
+        if (localSession) {
+          setUserProfile(localSession);
+        }
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  const loginWithProfile = (profile: UserProfile) => {
+    setUserProfile(profile);
+    setActiveLocalSession(profile);
+    if (navigator.onLine) {
+      setDoc(doc(db, "users", profile.uid), profile, { merge: true }).catch(() => {
+        // Offline or restricted Firestore fallback
+      });
+      pullCloudNotes(profile.uid)
+        .then((merged) => setNotes(merged))
+        .catch(() => {});
+    }
+  };
+
+  const logoutUser = async () => {
+    try {
+      await signOut(auth);
+    } catch {
+      // Ignore Firebase signout error if offline
+    }
+    setActiveLocalSession(null);
+    setUserProfile(null);
+    sendPushNotification(
+      "সাইন আউট সম্পন্ন",
+      "আপনি সফলভাবে অ্যাকাউন্ট থেকে লগআউট করেছেন। লোকাল নোটগুলো ডিভাইসে সংরক্ষিত আছে।",
+      "alert"
+    );
+  };
 
   const openAuth = (tab: "signin" | "signup" | "forgot" = "signin") => {
     setAuthModalTab(tab);
@@ -174,15 +254,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendPushNotification(
           "অফলাইন মোড সক্রিয় (সিমুলেশন)",
           "আপনি ম্যানুয়ালি অফলাইন মোড অন করেছেন। এখন অফলাইন সেভ ও কিউ ফিচার টেস্ট করতে পারেন।",
-          "alert"
+          "alert",
+          "/files",
+          userProfile?.uid
         );
       } else {
         sendPushNotification(
           "অনলাইন মোড সক্রিয় (সিমুলেশন)",
           "কানেকশন রিস্টোর করা হয়েছে। পেন্ডিং ডাটা স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
-          "update"
+          "update",
+          "/",
+          userProfile?.uid
         );
-        setTimeout(() => triggerSync(), 500);
+        setTimeout(() => triggerSync(), 400);
       }
       return next;
     });
@@ -192,7 +276,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      const res = await processSyncQueue(user?.uid);
+      await processSyncQueue(userProfile?.uid);
       setPendingSyncCount(getSyncQueue().length);
       setLastSyncedAt(getLastSyncTime());
       setNotes(getOfflineNotes());
@@ -207,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createNote = (title: string, content: string, category: NoteItem["category"]) => {
     const newNote: NoteItem = {
       id: `note-${Date.now()}`,
-      userId: user?.uid,
+      userId: userProfile?.uid,
       title,
       content,
       category,
@@ -220,20 +304,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotes(updated);
     saveOfflineNotes(updated);
 
-    // Enqueue for cloud sync
     const queueLen = enqueueSyncAction("CREATE_NOTE", newNote);
     setPendingSyncCount(queueLen);
 
-    // If online, auto sync immediately
-    if (isOnline && user) {
+    if (isOnline && userProfile) {
       triggerSync();
+      sendPushNotification(
+        "নতুন নোট তৈরি ও সিঙ্ক হয়েছে",
+        `"${title}" আপনার ক্লাউড ও অফলাইন স্টোরেজে সংরক্ষিত হয়েছে।`,
+        "content",
+        "/files",
+        userProfile.uid
+      );
     } else {
       sendPushNotification(
         "নোট অফলাইনে সেভ করা হয়েছে",
         `"${title}" নিরাপদে লোকাল মেমরিতে জমা হয়েছে। অনলাইনে এলে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।`,
-        "content"
+        "content",
+        "/files",
+        userProfile?.uid
       );
-      setNotifications(getStoredNotifications());
     }
   };
 
@@ -258,7 +348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (changedNote) {
       const queueLen = enqueueSyncAction("UPDATE_NOTE", changedNote);
       setPendingSyncCount(queueLen);
-      if (isOnline && user) {
+      if (isOnline && userProfile) {
         triggerSync();
       }
     }
@@ -271,7 +361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const queueLen = enqueueSyncAction("DELETE_NOTE", { id });
     setPendingSyncCount(queueLen);
-    if (isOnline && user) {
+    if (isOnline && userProfile) {
       triggerSync();
     }
   };
@@ -293,22 +383,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveStoredNotifications([]);
   };
 
+  const dismissToastNotification = () => {
+    setActiveToastNotification(null);
+  };
+
+  const sendCustomNotification = (
+    title: string,
+    message: string,
+    type: "content" | "update" | "alert",
+    actionUrl?: string
+  ) => {
+    sendPushNotification(title, message, type, actionUrl, userProfile?.uid);
+    setNotifications(getStoredNotifications());
+  };
+
   const sendTestAlert = () => {
-    const types: Array<"content" | "update" | "alert"> = ["alert", "update", "content"];
-    const titles = [
-      "দৈনিক স্টাডি নোটিফিকেশন",
-      "নতুন AI ইউটিউব সামারি প্রস্তুত!",
-      "অফলাইন সিঙ্ক রিমাইন্ডার",
-      "পাসওয়ার্ড ও অ্যাকাউন্ট সিকিউরিটি অ্যালার্ট",
+    const presets: Array<{
+      title: string;
+      message: string;
+      type: "content" | "update" | "alert";
+      actionUrl: string;
+    }> = [
+      {
+        title: "দৈনিক স্টাডি রিমাইন্ডার",
+        message: "আপনার রিভিশন লিস্টে ২টি অফলাইন নোট ও ফ্ল্যাশকার্ড বাকি আছে। এখনই রিভিউ করুন!",
+        type: "alert",
+        actionUrl: "/files",
+      },
+      {
+        title: "NoteGPT ফাইল সামারি প্রস্তুত!",
+        message: "আপনার সর্বশেষ ডকুমেন্টের মূল পয়েন্ট ও প্রশ্নোত্তর তৈরি সম্পন্ন হয়েছে।",
+        type: "content",
+        actionUrl: "/files",
+      },
+      {
+        title: "ক্লাউড ও অফলাইন ব্যাকআপ আপডেট",
+        message: "আপনার সব নোট ও ইউজার ক্রেডেনশিয়াল SHA-256 ও ফায়ারবেসে সুরক্ষিত আছে।",
+        type: "update",
+        actionUrl: "/settings",
+      },
     ];
-    const messages = [
-      "আপনার রিভিশন লিস্টে ২টি অফলাইন নোট বাকি আছে।",
-      "NoteGPT ইন্টেলিজেন্স দ্বারা আপনার লেকচার ফাইল প্রসেস সম্পন্ন হয়েছে।",
-      "সবগুলো অফলাইন পরিবর্তন ব্যাকআপ করার জন্য সিঙ্ক চেক করুন।",
-      "আপনার প্রোফাইল সফলভাবে ভেরিফাই ও সুরক্ষিত হয়েছে।",
-    ];
-    const rand = Math.floor(Math.random() * titles.length);
-    sendPushNotification(titles[rand], messages[rand], types[rand % 3]);
+    const pick = presets[Math.floor(Math.random() * presets.length)];
+    sendPushNotification(pick.title, pick.message, pick.type, pick.actionUrl, userProfile?.uid);
     setNotifications(getStoredNotifications());
   };
 
@@ -318,22 +434,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sendPushNotification(
         "পুশ নোটিফিকেশন চালু হয়েছে!",
         "এখন থেকে নতুন কন্টেন্ট এবং গুরুত্বপূর্ণ সব আপডেট সরাসরি পাবেন।",
-        "update"
+        "update",
+        "/",
+        userProfile?.uid
       );
       setNotifications(getStoredNotifications());
     }
     return perm;
   };
 
+  const updateNotificationPrefs = (partial: Partial<NotificationPreferences>) => {
+    const updated = { ...notificationPrefs, ...partial };
+    setNotificationPrefs(updated);
+    saveNotificationPreferences(updated);
+    if (userProfile && navigator.onLine) {
+      setDoc(
+        doc(db, "users", userProfile.uid),
+        { notificationPreferences: updated },
+        { merge: true }
+      ).catch(() => {});
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
-        user,
+        user: userProfile,
         userProfile,
         isAuthModalOpen,
         authModalTab,
         openAuth,
         closeAuth,
+        loginWithProfile,
+        logoutUser,
         isOnline,
         isSimulatedOffline,
         toggleSimulatedOffline,
@@ -347,13 +480,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteNote,
         notifications,
         unreadCount,
+        activeToastNotification,
+        dismissToastNotification,
         isNotificationCenterOpen,
         setIsNotificationCenterOpen,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         clearAllNotifications,
         sendTestAlert,
+        sendCustomNotification,
         requestPushPermission,
+        notificationPrefs,
+        updateNotificationPrefs,
       }}
     >
       {children}

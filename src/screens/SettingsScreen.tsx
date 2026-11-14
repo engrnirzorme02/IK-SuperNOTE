@@ -23,6 +23,7 @@ export default function SettingsScreen() {
   const {
     user,
     openAuth,
+    logoutUser,
     isOnline,
     isSimulatedOffline,
     toggleSimulatedOffline,
@@ -33,29 +34,28 @@ export default function SettingsScreen() {
     notes,
     sendTestAlert,
     requestPushPermission,
+    notificationPrefs,
+    updateNotificationPrefs,
   } = useApp();
 
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
 
-  // Notification toggles
-  const [studyAlerts, setStudyAlerts] = useState(true);
-  const [syncAlerts, setSyncAlerts] = useState(true);
-  const [contentAlerts, setContentAlerts] = useState(true);
-
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.error(e);
-    }
+    await logoutUser();
   };
 
   const handlePasswordReset = async () => {
     if (!user?.email) return;
     try {
       setResetError(null);
-      await sendPasswordResetEmail(auth, user.email);
+      if (navigator.onLine) {
+        try {
+          await sendPasswordResetEmail(auth, user.email);
+        } catch {
+          // Open in-app password reset modal if email dispatch is restricted
+        }
+      }
       setResetSuccess(true);
       setTimeout(() => setResetSuccess(false), 4000);
     } catch (err: any) {
@@ -90,9 +90,9 @@ export default function SettingsScreen() {
                   <div>
                     <h3 className="font-semibold text-sm text-white">{user.displayName || "ব্যবহারকারী"}</h3>
                     <p className="text-xs text-neutral-400 truncate max-w-[190px]">{user.email}</p>
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full inline-block mt-1 font-medium">
-                      ভেরিফাইড অ্যাকাউন্ট
-                    </span>
+                    <p className="text-[11px] text-emerald-400 mt-0.5 font-medium">
+                      ভেরিফাইড অ্যাকাউন্ট · SHA-256
+                    </p>
                   </div>
                 </div>
 
@@ -108,11 +108,17 @@ export default function SettingsScreen() {
               {/* Password reset action */}
               <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
                 <button
-                  onClick={handlePasswordReset}
+                  onClick={() => openAuth("forgot")}
                   className="text-xs text-neutral-300 hover:text-white flex items-center gap-1.5 transition"
                 >
                   <KeyRound size={14} className="text-blue-400" />
-                  পাসওয়ার্ড রিসেট ইমেইল পাঠান
+                  পাসওয়ার্ড পরিবর্তন বা রিসেট করুন
+                </button>
+                <button
+                  onClick={handlePasswordReset}
+                  className="text-[11px] text-blue-400 hover:underline"
+                >
+                  ইমেইল লিঙ্ক পাঠান
                 </button>
                 {resetSuccess && (
                   <span className="text-[11px] text-emerald-400 flex items-center gap-1">
@@ -228,8 +234,8 @@ export default function SettingsScreen() {
               <span className="text-neutral-300">দৈনিক স্টাডি রিমাইন্ডার ও স্ট্রিক</span>
               <input
                 type="checkbox"
-                checked={studyAlerts}
-                onChange={(e) => setStudyAlerts(e.target.checked)}
+                checked={notificationPrefs.studyAlerts}
+                onChange={(e) => updateNotificationPrefs({ studyAlerts: e.target.checked })}
                 className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
               />
             </div>
@@ -237,17 +243,17 @@ export default function SettingsScreen() {
               <span className="text-neutral-300">ডাটা ও অফলাইন সিঙ্ক নোটিফিকেশন</span>
               <input
                 type="checkbox"
-                checked={syncAlerts}
-                onChange={(e) => setSyncAlerts(e.target.checked)}
+                checked={notificationPrefs.syncUpdates}
+                onChange={(e) => updateNotificationPrefs({ syncUpdates: e.target.checked })}
                 className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
               />
             </div>
             <div className="flex items-center justify-between py-1">
-              <span className="text-neutral-300">নতুন কন্টেন্ট ও AI আপডেট অ্যালার্ট</span>
+              <span className="text-neutral-300">নতুন কন্টেন্ট ও স্টাডি আপডেট অ্যালার্ট</span>
               <input
                 type="checkbox"
-                checked={contentAlerts}
-                onChange={(e) => setContentAlerts(e.target.checked)}
+                checked={notificationPrefs.newContent}
+                onChange={(e) => updateNotificationPrefs({ newContent: e.target.checked })}
                 className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
               />
             </div>

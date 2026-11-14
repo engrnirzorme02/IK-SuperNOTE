@@ -552,7 +552,7 @@ export default function FilesScreen() {
 
                     <button
                       onClick={() => {
-                        navigate("/");
+                        navigate("/chat");
                       }}
                       className="flex items-center justify-center gap-1 bg-neutral-800 hover:bg-neutral-750 text-neutral-300 text-[11px] font-medium px-3 py-1.5 rounded-xl transition border border-neutral-700/60"
                       title="AI চ্যাটে আলোচনা করুন"

@@ -6,6 +6,7 @@
 import { BrowserRouter, Routes, Route } from "react-router";
 import { AppProvider } from "./context/AppContext";
 import Layout from "./Layout";
+import HomeScreen from "./screens/HomeScreen";
 import ChatScreen from "./screens/ChatScreen";
 import FilesScreen from "./screens/FilesScreen";
 import MediaScreen from "./screens/MediaScreen";
@@ -17,7 +18,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route path="/" element={<ChatScreen />} />
+            <Route path="/" element={<HomeScreen />} />
+            <Route path="/chat" element={<ChatScreen />} />
             <Route path="/files" element={<FilesScreen />} />
             <Route path="/media" element={<MediaScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />
@@ -27,3 +29,4 @@ export default function App() {
     </AppProvider>
   );
 }
+
