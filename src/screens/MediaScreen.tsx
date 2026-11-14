@@ -61,7 +61,6 @@ export default function MediaScreen() {
         body: JSON.stringify({
           prompt,
           aspectRatio,
-          model: activeTab === "image" ? "gemini-3.1-flash-image" : "veo-3.1-generate-preview",
           refImage: refImage?.base64,
         }),
       });
@@ -81,12 +80,12 @@ export default function MediaScreen() {
         if (data.videoBase64) {
           setResultBase64(data.videoBase64);
         } else {
-          throw new Error("ভিডিও জেনারেট হতে কিছুটা সময় নেয় বা কোটা সীমাবদ্ধ।");
+          setErrorMessage(data.message || "Google Cloud ভিডিও ব্যাকএন্ড রিকোয়েস্ট পলিসি নির্দেশ অনুযায়ী ডিঅ্যাক্টিভেট করা হয়েছে।");
         }
       }
     } catch (e: any) {
       console.error("Generation failed:", e);
-      setErrorMessage(e.message || "জেনারেশন সফল হয়নি। কোটা বা সংযোগ চেক করুন।");
+      setErrorMessage(e.message || "জেনারেশন সফল হয়নি।");
     } finally {
       setIsGenerating(false);
     }
@@ -96,8 +95,8 @@ export default function MediaScreen() {
     if (!resultBase64) return;
     const link = document.createElement("a");
     if (activeTab === "image") {
-      link.href = `data:image/jpeg;base64,${resultBase64}`;
-      link.download = `SuperNOTE_AI_${Date.now()}.jpg`;
+      link.href = `data:image/svg+xml;base64,${resultBase64}`;
+      link.download = `SuperNOTE_Visual_${Date.now()}.svg`;
     } else {
       link.href = `data:video/mp4;base64,${resultBase64}`;
       link.download = `SuperNOTE_AI_${Date.now()}.mp4`;
@@ -171,17 +170,21 @@ export default function MediaScreen() {
               <Loader2 className="animate-spin text-blue-400" size={28} />
               <span className="text-xs font-medium">
                 {activeTab === "image"
-                  ? "Gemini 3.1 Flash ছবি তৈরি করছে..."
-                  : "Veo 3.1 দিয়ে ভিডিও প্রসেস হচ্ছে..."}
+                  ? "প্যাসিভ লোকাল ইঞ্জিনে ছবি তৈরি হচ্ছে..."
+                  : "ভিডিও রিকোয়েস্ট যাচাই হচ্ছে..."}
               </span>
               <span className="text-[10px] text-neutral-500">অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন</span>
             </div>
           ) : resultBase64 ? (
             activeTab === "image" ? (
               <img
-                src={`data:image/jpeg;base64,${resultBase64}`}
+                src={
+                  resultBase64.startsWith("PHN2Zy") || resultBase64.startsWith("PD94bW")
+                    ? `data:image/svg+xml;base64,${resultBase64}`
+                    : `data:image/jpeg;base64,${resultBase64}`
+                }
                 alt="Generated result"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-neutral-950 p-2"
               />
             ) : (
               <video

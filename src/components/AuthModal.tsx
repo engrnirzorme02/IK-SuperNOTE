@@ -156,8 +156,7 @@ export default function AuthModal() {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
-      provider.addScope("https://www.googleapis.com/auth/drive.readonly");
-      provider.addScope("https://www.googleapis.com/auth/documents.readonly");
+      // Zero extra cloud/workspace scopes requested
       const result = await signInWithPopup(auth, provider);
       const loggedUser = result.user;
 

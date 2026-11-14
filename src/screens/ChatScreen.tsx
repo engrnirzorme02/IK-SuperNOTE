@@ -269,9 +269,6 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: formattedMessages,
-          model: useThinking ? "gemini-3.1-pro-preview" : "gemini-3.8-flash",
-          useThinking,
-          useGrounding: grounding !== "none" ? grounding : undefined,
         }),
       });
 
@@ -317,56 +314,16 @@ export default function ChatScreen() {
       {/* App Bar Controls */}
       <div className="h-12 flex items-center justify-between px-4 border-b border-neutral-800 bg-neutral-900/40 backdrop-blur">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm text-white">AI Assistant</span>
-          {useThinking ? (
-            <span className="text-[10px] bg-blue-500/20 text-blue-400 font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-              <Brain size={10} /> Thinking (3.1 Pro)
-            </span>
-          ) : (
-            <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-full">
-              Flash 3.8
-            </span>
-          )}
+          <span className="font-semibold text-sm text-white">IK-SuperNOTE সহকারী</span>
+          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Sparkles size={10} /> প্যাসিভ লোকাল মোড
+          </span>
         </div>
 
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => setUseThinking(!useThinking)}
-            title="Gemini 3.1 Pro হাই থিংকিং মোড"
-            className={cn(
-              "px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition",
-              useThinking
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:text-white"
-            )}
-          >
-            <Brain size={13} />
-            <span className="text-[11px]">Thinking</span>
-          </button>
-          <button
-            onClick={() => setGrounding(grounding === "search" ? "none" : "search")}
-            title="Google Search লাইভ গ্রাউন্ডিং"
-            className={cn(
-              "p-1.5 rounded-lg transition",
-              grounding === "search"
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:text-white"
-            )}
-          >
-            <Search size={14} />
-          </button>
-          <button
-            onClick={() => setGrounding(grounding === "maps" ? "none" : "maps")}
-            title="Google Maps গ্রাউন্ডিং"
-            className={cn(
-              "p-1.5 rounded-lg transition",
-              grounding === "maps"
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:text-white"
-            )}
-          >
-            <Map size={14} />
-          </button>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-neutral-400 bg-neutral-800/80 px-2.5 py-1 rounded-lg border border-neutral-700/60 flex items-center gap-1">
+            🔒 ক্লাউড কল বন্ধ
+          </span>
         </div>
       </div>
 

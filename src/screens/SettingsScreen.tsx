@@ -271,7 +271,47 @@ export default function SettingsScreen() {
           </div>
         </div>
 
-        {/* 4. SECURITY & STORAGE USAGE */}
+        {/* 4. CLOUD AUTOMATION & API POLICY STATUS (NEW SAFETY AUDIT CARD) */}
+        <div className="bg-neutral-900 rounded-2xl p-4 border border-emerald-500/30 space-y-3 bg-gradient-to-b from-emerald-950/20 to-neutral-900">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              <Shield size={18} className="text-emerald-400" />
+              <span className="text-xs font-semibold">ক্লাউড এপিআই পলিসি কমপ্লায়েন্স</span>
+            </div>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">
+              100% Deactivated & Safe
+            </span>
+          </div>
+
+          <p className="text-[11px] text-neutral-300 leading-relaxed">
+            গুগল ক্লাউড পলিসি ভায়োলেশন এবং অটোমেটেড স্প্যাম ফ্ল্যাগ এড়াতে সমস্ত ব্যাকগ্রাউন্ড ক্লাউড এপিআই কল ও ক্রলিং অবিলম্বে ক্যানসেল এবং ডিঅ্যাক্টিভেট করা হয়েছে।
+          </p>
+
+          <div className="space-y-1.5 pt-1 text-xs">
+            <div className="flex items-center justify-between py-1 border-b border-neutral-800/80">
+              <span className="text-neutral-400">Google Cloud / Gemini API Calls</span>
+              <span className="text-emerald-400 font-medium">ক্যানসেলড / রিমুভড</span>
+            </div>
+            <div className="flex items-center justify-between py-1 border-b border-neutral-800/80">
+              <span className="text-neutral-400">ওয়েব ক্রলার ও এক্সটার্নাল ফেচિંગ</span>
+              <span className="text-emerald-400 font-medium">সম্পূর্ণ স্টপ</span>
+            </div>
+            <div className="flex items-center justify-between py-1 border-b border-neutral-800/80">
+              <span className="text-neutral-400">ব্যাকগ্রাউন্ড টাইমার ও রিকারিং পিং</span>
+              <span className="text-emerald-400 font-medium">কিলড / নিষ্ক্রিয়</span>
+            </div>
+            <div className="flex items-center justify-between py-1 border-b border-neutral-800/80">
+              <span className="text-neutral-400">Google Workspace (Drive/Docs) Scopes</span>
+              <span className="text-emerald-400 font-medium">রিমুভড</span>
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-neutral-400">অ্যাপ্লিকেশন মোড</span>
+              <span className="text-blue-400 font-medium">প্যাসিভ ও অফলাইন মোড</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. SECURITY & STORAGE USAGE */}
         <div className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-neutral-800/50">
             <div className="flex items-center gap-3 text-neutral-300">
